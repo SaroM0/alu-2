@@ -1,0 +1,14 @@
+function () do
+begin
+set x := 1 + 2
+if x .gt. 2 then
+begin
+set x := x ** 2
+end
+else
+begin
+set x := x - 1
+end
+end
+end
+main
