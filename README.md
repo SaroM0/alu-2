@@ -91,13 +91,6 @@ rascal> import lang::alu::Main;
 rascal> runFile(|file:///path/to/alu/tests/valid/simple_typed.alu|);
 ```
 
-### Using Eclipse with Rascal Plugin
-
-1. Install Rascal Eclipse Plugin
-2. Import project as Maven project
-3. Open Rascal console
-4. Import modules and run tests
-
 ### Using VSCode with Rascal Extension
 
 1. Install Rascal LSP extension
