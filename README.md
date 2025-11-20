@@ -1,238 +1,292 @@
-# Proyecto ALU - Lenguaje de Programación en Rascal
+# ALU Language - Type System Implementation
 
-## Descripción
+A statically-typed imperative programming language implemented in Rascal with TypePal framework for type checking. This project implements Project 3, extending the ALU language with type annotations and a comprehensive type system.
 
-se incluye:
-- Variables y asignaciones
-- Operadores aritméticos, lógicos y de comparación
-- Estructuras de control (if-then-else, for loops)
-- Funciones
-- Sistema de tipos (Int, Float, Bool, Char, String)
+## Overview
 
----
+ALU is a simple imperative language focused on arithmetic and logical expressions, control structures, and basic data structures. The language provides:
 
-## Requisitos
+- **Arithmetic expressions**: addition (`+`), subtraction (`-`), multiplication (`*`), division (`/`), modulo (`mod`), power (`**`), and arithmetic negation (`neg`)
+- **Boolean expressions**: comparisons (`==`, `!=`, `.lt.`, `.gt.`, `.le.`, `.ge.`) and logical operators (`and`/`&&`, `or`/`||`)
+- **Control structures**: conditionals (`if`-`then`-`else`-`end`) and `while` loops (`while`-`do`-`end`)
+- **Data structures**: lists (`[...]`), sets (`{...}`), and maps (`{k:v, ...}`)
+- **Functions**: function definitions with optional parameters and code bodies
 
-### Software Necesario
+In Iteration 3, the language is extended with **type annotations** on values and data structures, allowing the type system to verify program correctness before execution.
 
-1. **Java JDK 11+**
+## Project Structure
 
-2. **Maven** (para gestionar dependencias)
+```
+alu/
+├── src/lang/alu/
+│   ├── AST.rsc            # Abstract Syntax Tree definitions
+│   ├── Syntax.rsc         # Concrete syntax grammar
+│   ├── Parser.rsc         # Parser implementation
+│   ├── ToAST.rsc          # Parse tree to AST transformation
+│   ├── TypeChecker.rsc    # TypePal-based type checker
+│   ├── Eval.rsc           # Interpreter/evaluator
+│   ├── Values.rsc         # Runtime value domain
+│   ├── Main.rsc           # Main entry point
+│   ├── Tests.rsc          # Test runner
+│   └── Editor.rsc         # Syntax highlighting configuration
+├── tests/
+│   ├── valid/             # Valid test programs
+│   └── invalid/           # Invalid test programs (should fail)
+├── pom.xml                # Maven configuration with TypePal
+└── README.md              # This file
+```
 
-3. **Rascal MPL 0.40.17**
+## Key Features
 
-### Instalar Dependencias
+### Iteration 2 Adjustments
+
+The project includes corrections from Iteration 2:
+
+- **Explicit syntax highlighting**: Added `Editor.rsc` module defining keywords, type keywords, and operators for syntax highlighting in Rascal editors
+- **Explicit AST**: Introduced a separate AST (`AST.rsc`) distinct from the parse tree, with transformation module (`ToAST.rsc`) for converting parse trees to AST
+
+### Type System
+
+The type system implemented in Iteration 3 includes:
+
+- **Base types**: `int`, `bool`, `char`, `string`
+- **Collection types**: `list`, `set`, `map` (element types inferred from context)
+- **Type annotations**: All variables must be declared with explicit types
+- **Type checking**: Static type checking using TypePal framework
+- **Existence verification**: All identifiers used in data structures must be declared before use
+
+## Requirements
+
+- **Java**: JDK 11 or higher
+- **Maven**: 3.6 or higher
+- **Rascal**: 0.40.17 (managed by Maven)
+- **TypePal**: 0.11.1 (managed by Maven)
+
+## Building the Project
+
+### 1. Download Dependencies
 
 ```bash
 mvn dependency:resolve
 ```
 
----
+This downloads Rascal MPL 0.40.17, TypePal 0.11.1, and all transitive dependencies.
 
+### 2. Compile
 
-##  Ejemplos y Salidas Esperadas
+```bash
+mvn clean compile
+```
 
-### 1. `simple.alu` - Asignación Básica
-```alu
+## Running Programs
+
+### Using Rascal REPL
+
+```bash
+# Start Rascal REPL
+java -Xmx1G -Xss32m -jar ~/.m2/repository/org/rascalmpl/rascal/0.40.17/rascal-0.40.17.jar
+
+# In the REPL:
+rascal> import lang::alu::Main;
+rascal> runFile(|file:///path/to/alu/tests/valid/simple_typed.alu|);
+```
+
+### Using Eclipse with Rascal Plugin
+
+1. Install Rascal Eclipse Plugin
+2. Import project as Maven project
+3. Open Rascal console
+4. Import modules and run tests
+
+### Using VSCode with Rascal Extension
+
+1. Install Rascal LSP extension
+2. Open project folder
+3. Open Rascal terminal
+4. Import and run
+
+## Example Programs
+
+### Valid Program
+
+**tests/valid/simple_typed.alu**:
+```
 function () do
 begin
-set x := 1
+    int x = 5;
+    bool flag = true;
+    string name = "Alice";
 end
 test
 ```
-**Salida**: `Result: VInt(1)`, `Env: ("x":VInt(1))`
 
----
-
-### 2. `demo.alu` - Aritmética y Condicionales
-```alu
-function () do
-begin
-set x := 1 + 2
-if x .gt. 2 then
-begin
-set x := x ** 2
-end
-else
-begin
-set x := x - 1
-end
-end
-end
-main
+**tests/valid/list_typed.alu**:
 ```
-**Salida**: `Result: VFloat(9.0)`, `Env: ("x":VFloat(9.0))`  
-**Explicación**: x = 3, como 3 > 2, entonces x = 3² = 9.0 ✅
-
----
-
-### 3. `loops.alu` - Loop For
-```alu
 function () do
 begin
-set s := 0
-for i from 1 to 3 do
-begin
-set s := s + i
-end
-end
-end
-sumUp
-```
-**Salida**: `Result: VInt(0)`, `Env: ("s":VInt(6),"i":VInt(3))`  
-**Explicación**: s = 0 + 1 + 2 + 3 = 6 ✅
-
----
-
-### 4. `test_if.alu` - Condicional
-```alu
-function () do
-begin
-if 1 .lt. 2 then
-begin
-set x := 1
-end
-else
-begin
-set x := 2
-end
-end
+    int a = 1;
+    int b = 2;
+    int c = 3;
+    list nums = [a, b, c];
 end
 test
 ```
-**Salida**: `Result: VInt(1)`, `Env: ("x":VInt(1))`  
-**Explicación**: Como 1 < 2 es verdadero, ejecuta then y asigna x = 1 ✅
 
----
+### Invalid Program
 
-### 5. `test_simple2.alu` - Múltiples Variables
-```alu
+**tests/invalid/type_mismatch.alu** (should fail):
+```
 function () do
 begin
-set x := 1
-set y := 2
+    int x = true;  // ERROR: type mismatch
 end
 test
 ```
-**Salida**: `Result: VInt(2)`, `Env: ("x":VInt(1),"y":VInt(2))` ✅
 
----
+**tests/invalid/undeclared_in_list.alu** (should fail):
+```
+function () do
+begin
+    int a = 1;
+    list nums = [a, c];  // ERROR: 'c' is not declared
+end
+test
+```
 
-## 🧪 Suite de Pruebas
+## Type System Rules
 
-### Tests de Regresión
+### Primitive Types
 
-Verificar que estos tres casos críticos funcionen:
+| Type | Description | Example |
+|------|-------------|---------|
+| `int` | Integer numbers | `int x = 42;` |
+| `bool` | Boolean values | `bool flag = true;` |
+| `char` | Single character | `char c = 'a';` |
+| `string` | String literals | `string s = "hello";` |
+
+### Collection Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `list` | Homogeneous list | `list nums = [1, 2, 3];` |
+| `set` | Homogeneous set | `set names = {"Ana", "Luis"};` |
+| `map` | Key-value map | `map dict = {1:"one", 2:"two"};` |
+
+### Type Rules
+
+1. **Arithmetic Operations** (`+`, `-`, `*`, `/`, `mod`, `neg`, `**`)
+   - Operands: `int`
+   - Result: `int`
+
+2. **Logical Operations** (`and`, `or`)
+   - Operands: `bool`
+   - Result: `bool`
+
+3. **Numeric Comparison Operations** (`.lt.`, `.gt.`, `.le.`, `.ge.`)
+   - Operands: `int`
+   - Result: `bool`
+
+4. **Equality Operations** (`==`, `!=`)
+   - Operands: same type (any type)
+   - Result: `bool`
+
+5. **Control Flow**
+   - If/while conditions: must be `bool`
+
+6. **Collections**
+   - All elements must have the same type
+   - Element type inferred from first element or declared type
+   - Empty collections cannot infer type
+
+7. **Assignments**
+   - Expression type must match declared variable type
+
+8. **Existence Rule**
+   - All identifiers used in data structures must be declared before use
+
+## Testing
+
+### Running All Tests
+
+```rascal
+import lang::alu::Tests;
+
+runAllTests();
+```
+
+### Running Valid Tests Only
+
+```rascal
+import lang::alu::Tests;
+
+runValidTests();
+```
+
+### Running Invalid Tests Only
+
+```rascal
+import lang::alu::Tests;
+
+runInvalidTests();
+```
+
+### Running a Single Test
 
 ```rascal
 import lang::alu::Main;
 
-// Test 1: demo.alu - x debe terminar en 9
-runFile(|file:///home/saro/university/lym/proyecto2/alu/examples/demo.alu|);
-// Verificar: Env contiene ("x":VFloat(9.0))
+// Full pipeline: parse, type check, execute
+runFile(|file:///path/to/test.alu|);
 
-// Test 2: loops.alu - s debe terminar en 6
-runFile(|file:///home/saro/university/lym/proyecto2/alu/examples/loops.alu|);
-// Verificar: Env contiene ("s":VInt(6))
-
-// Test 3: test_if.alu - x debe terminar en 1
-runFile(|file:///home/saro/university/lym/proyecto2/alu/examples/test_if.alu|);
-// Verificar: Env contiene ("x":VInt(1))
+// Type check only
+typeCheckFile(|file:///path/to/test.alu|);
 ```
 
----
+## TypePal Integration
 
-## Estructura del Proyecto
+TypePal is Rascal's framework for type checking and name resolution. The implementation uses TypePal to:
 
-```
-/home/saro/university/lym/proyecto2/alu/
-│
-├── src/lang/alu/
-│   ├── Syntax.rsc        # Gramática del lenguaje ALU
-│   ├── Parser.rsc        # Parser (string/archivo → AST)
-│   ├── Eval.rsc          # Evaluador/Intérprete
-│   ├── Values.rsc        # Sistema de tipos (Val, Env)
-│   └── Main.rsc          # Punto de entrada (runFile)
-│
-├── examples/
-│   ├── simple.alu        # Asignación básica
-│   ├── demo.alu          # Aritmética + if + potencia
-│   ├── loops.alu         # Loop for con acumulación
-│   ├── test_if.alu       # Condicional if-then-else
-│   └── test_simple2.alu  # Múltiples variables
-│
-├── META-INF/
-│   └── RASCAL.MF         # Manifiesto del proyecto
-│
-├── pom.xml               # Configuración Maven
-└── README.md             # Este archivo
-```
+1. **Collect Phase**: Traverse AST and collect variable definitions, variable uses, and type constraints
+2. **Solve Phase**: TypePal resolves name bindings, type constraints, and type inference
+3. **Result**: Type-safe program or list of errors
 
----
+### Key TypePal Functions Used
 
-## Características del Lenguaje
+- `c.define(name, id, node, props)` - Define a variable with its type
+- `c.use(name, ids)` - Use a variable (checks existence)
+- `c.fact(node, type)` - Assert a known type
+- `c.requireEqual(t1, t2, msg)` - Require type equality
+- `c.calculate(name, node, deps, calc)` - Calculate type from dependencies
 
-### Palabras Reservadas
-```
-and, begin, call, cond, data, do, else, end, for, from,
-function, if, in, iterator, mod, neg, or, sequence, set,
-struct, then, to, tuple, type, with, yielding
-```
+## Execution Pipeline
 
-### Operadores
+The complete execution pipeline for an ALU program:
 
-| Tipo | Operadores | Ejemplo |
-|------|------------|---------|
-| Aritméticos | `+`, `-`, `*`, `/`, `mod`, `**`, `neg` | `x + 2`, `x ** 2` |
-| Comparación | `==`, `!=`, `.lt.`, `.gt.`, `.le.`, `.ge.` | `x .gt. 5` |
-| Lógicos | `and`, `or` | `x .gt. 0 and x .lt. 10` |
+1. **Parsing**: Read `.alu` file using `Parser::parseProgramFile()`, obtaining parse tree (`Syntax::Program`)
+2. **AST Transformation**: Transform parse tree to AST using `ToAST::toProgram()`, generating `AST::Program`
+3. **Type Checking**: Apply TypePal specification using `TypeChecker::checkTypes()`, which internally calls `aluTypePalChecker()` and returns error messages
+4. **Execution Decision**:
+   - If no type errors: execute program on AST using `Eval::evalProgram()`
+   - If type errors detected: display error messages and do not execute
 
-### Sintaxis Básica
+This integration ensures errors are detected in a static phase before execution, avoiding unexpected runtime behaviors.
 
-**Asignación**:
-```alu
-set x := 10
-set y := x + 5
-```
+## Troubleshooting
 
-**Condicional**:
-```alu
-if condición then
-begin
-  // código
-end
-else
-begin
-  // código
-end
-end
-```
+### Issue: "Cannot find TypePal"
+**Solution**: Run `mvn dependency:resolve` to download TypePal
 
-**Loop**:
-```alu
-for i from 1 to 10 do
-begin
-  // código
-end
-end
-```
+### Issue: "Module not found"
+**Solution**: Ensure you're in the correct directory and classpath includes target/classes
 
-**Función**:
-```alu
-function () do
-begin
-  // código
-end
-end
-nombreFuncion
-```
+### Issue: "Parse error"
+**Solution**: Check that your `.alu` file follows the grammar in `Syntax.rsc`
 
-### Tipos de Datos
+### Issue: "Type error not detected"
+**Solution**: Verify `TypeChecker.rsc` is being used correctly
 
-- `VInt(n)` - Enteros: `42`, `-10`
-- `VFloat(r)` - Flotantes: `3.14`, resultado de `/` y `**`
-- `VBool(b)` - Booleanos: `true`, `false`
-- `VChar(c)` - Caracteres: `'a'`, `'Z'`
-- `VString(s)` - Cadenas: `"hello"`
+## References
 
----
+- [Rascal Documentation](https://www.rascal-mpl.org/)
+- [TypePal Documentation](https://www.rascal-mpl.org/docs/Library/analysis/typepal/)
+- [Rascal Tutor](https://tutor.rascal-mpl.org/)

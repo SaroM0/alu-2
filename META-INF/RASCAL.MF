@@ -1,5 +1,0 @@
-Manifest-Version: 0.0.1
-Project-Name: alu
-Source: src
-Require-Libraries: |lib://rascal|
-

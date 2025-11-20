@@ -1,0 +1,6 @@
+function () do
+begin
+int a = 1;
+list nums = [a, c];
+end
+test

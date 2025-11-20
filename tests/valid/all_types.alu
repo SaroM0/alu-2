@@ -1,0 +1,8 @@
+function () do
+begin
+int x = 42;
+bool flag = false;
+char letter = 'Z';
+string message = "Complete test";
+end
+test

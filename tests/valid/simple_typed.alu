@@ -1,0 +1,7 @@
+function () do
+begin
+int x = 5;
+bool flag = true;
+string name = "Alice";
+end
+test

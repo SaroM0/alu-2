@@ -1,0 +1,8 @@
+function () do
+begin
+int a = 1;
+bool b = true;
+list nums = [a, b];
+end
+test
+

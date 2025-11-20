@@ -1,0 +1,7 @@
+function () do
+begin
+int a = 1;
+set S = {a, c};
+end
+test
+

@@ -1,0 +1,8 @@
+function () do
+begin
+string s1 = "Ana";
+string s2 = "Luis";
+set names = {s1, s2};
+end
+test
+

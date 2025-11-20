@@ -5,10 +5,11 @@ layout L = WS;
 lexical WS = [\ \t\n\r] | "//" ![\n]* $;
 
 // Palabras reservadas (deben ir antes de Id para evitar conflictos)
-keyword Keywords = "cond" | "do" | "data" | "end" | "for" | "from" | "then" 
-                 | "function" | "else" | "if" | "in" | "iterator" | "sequence" 
+keyword Keywords = "cond" | "do" | "data" | "end" | "for" | "from" | "then"
+                 | "function" | "else" | "if" | "in" | "iterator" | "sequence"
                  | "struct" | "to" | "tuple" | "type" | "with" | "yielding"
-                 | "and" | "or" | "neg" | "mod" | "set" | "call" | "begin";
+                 | "and" | "or" | "neg" | "mod" | "set" | "call" | "begin"
+                 | "int" | "bool" | "char" | "string" | "list" | "map" | "while";
 
 // Terminales léxicos básicos
 lexical Id = ([a-z][A-Za-z0-9_]* !>> [A-Za-z0-9_]) \ Keywords;
@@ -16,6 +17,33 @@ lexical INT    = [0-9]+;
 lexical FLOAT  = [0-9]+ "." [0-9]+;
 lexical CHAR   = "\'" ![\'\n\r] "\'";
 lexical STRING = "\"" ![\"\n\r]* "\"";
+
+// Definición de tipos - sin tipos genéricos en sintaxis concreta para evitar conflictos
+// Los tipos genéricos se manejan solo en el AST
+syntax Type
+  = tint: "int"
+  | tbool: "bool"
+  | tchar: "char"
+  | tstring: "string"
+  | tlist: "list"
+  | tset: "set"
+  | tmap: "map"
+  ;
+
+// Literales de estructuras de datos
+syntax ListLiteral = "[" {Expression ","}* "]";
+syntax SetLiteral  = "{" {Expression ","}* "}";
+syntax MapPair = Expression ":" Expression;
+syntax MapLiteral  = "{" {MapPair ","}* "}";
+
+// Declaraciones tipadas - sin especificar tipos de elementos para evitar conflicto con <,>
+syntax TypedDecl
+  = Type Id "=" Expression ";"
+  | Type Id ";"
+  | Type Id "=" ListLiteral ";"
+  | Type Id "=" SetLiteral ";"
+  | Type Id "=" MapLiteral ";"
+  ;
 
 // Símbolo inicial del programa
 start syntax Program = program: Module* modules;
@@ -31,7 +59,7 @@ syntax Module
 syntax Variables = vars: {Id ","}+;
 
 // Declaración de función
-syntax Function 
+syntax Function
   = funcNoParams: "function" "()" "do" Body Id
   | func: "function" "(" Variables ")" "do" Body Id
   | funcAssignNoParams: Id ":=" "function" "()" "do" Body Id
@@ -39,7 +67,7 @@ syntax Function
   ;
 
 // Declaración de tipo de dato
-syntax Data 
+syntax Data
   = dataDecl: "data" "with" Variables DataBody "end" Id
   | dataAssign: Id ":=" "data" "with" Variables DataBody "end" Id
   ;
@@ -54,8 +82,10 @@ syntax Body = "begin" Statement+ "end";
 syntax Statement
   = sLoop:   Loop
   | sIf:     "if" Expression "then" Body "else" Body "end"
+  | sWhile:  "while" Expression "do" Body "end"
   | sCond:   "cond" Expression "do" PatternBody "end"
-  | sAssign: Assignment
+  | sAssign: Assignment | Assignment ";"
+  | sTypedDecl: TypedDecl
   | sInvoke: Invocation
   ;
 
@@ -90,6 +120,9 @@ syntax Invocation
 // Expresiones con prioridad de operadores
 syntax Expression
   = Principal
+  | ListLiteral
+  | SetLiteral
+  | MapLiteral
   | bracket "(" Expression ")"
   > uminus: "neg" Expression
   > right pow: Expression "**" Expression
@@ -104,8 +137,8 @@ syntax Expression
   | gt: Expression ".gt." Expression
   | le: Expression ".le." Expression
   | ge: Expression ".ge." Expression
-  > left andb: Expression "and" Expression
-  > left orb: Expression "or" Expression
+  > left andb: Expression "and" Expression | Expression "&&" Expression
+  > left orb: Expression "or" Expression | Expression "||" Expression
   > right arrow: Expression "=\>" Expression
   > right pair: Expression "::" Expression
   ;

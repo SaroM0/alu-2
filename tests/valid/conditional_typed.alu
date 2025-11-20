@@ -1,0 +1,15 @@
+function () do
+begin
+int x = 5;
+bool cond = x .gt. 3;
+if cond then
+begin
+int y = 10;
+end
+else
+begin
+int y = 20;
+end
+end
+test
+

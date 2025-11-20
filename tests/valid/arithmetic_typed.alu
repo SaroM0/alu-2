@@ -1,0 +1,9 @@
+function () do
+begin
+int x = 5;
+int y = 3;
+int z = x + y;
+int w = x * y;
+end
+test
+

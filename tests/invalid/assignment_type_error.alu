@@ -1,0 +1,8 @@
+function () do
+begin
+int x = 5;
+bool y = true;
+x = y;
+end
+test
+

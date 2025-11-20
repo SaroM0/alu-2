@@ -1,254 +1,315 @@
 module lang::alu::Eval
 
 import IO;
-import ParseTree;
-import String;
-import List;
-import lang::alu::Syntax;
+import lang::alu::AST;
 import lang::alu::Values;
 
-// Evalúa un programa completo, procesando cada módulo secuencialmente
-public tuple[Val v, Env env] evalProgram(Program p) {
-  Env env = ();
-  Val last = VInt(0);
-  for (m <- p.modules) {
-    <last, env> = evalModule(m, env);
+// Alias locales para simplificar
+alias Val = Values::Val;
+// Env ya está definido en Values, no necesitamos redefinirlo
+alias Program = AST::Program;
+alias Decl = AST::Decl;
+alias Stmt = AST::Stmt;
+alias Expr = AST::Expr;
+alias Type = AST::Type;
+
+// Evalúa un programa completo sobre el AST
+public tuple[Val v, Values::Env env] evalProgram(Program p) {
+  Values::Env env = ();
+  Val last = Values::VInt(0);
+  
+  // Primero procesar todas las declaraciones
+  for (decl <- p.decls) {
+    <last, env> = evalDecl(decl, env);
   }
+  
+  // Luego ejecutar todas las sentencias
+  for (stmt <- p.stmts) {
+    <last, env> = evalStmt(stmt, env);
+  }
+  
   return <last, env>;
 }
 
-// Evalúa un módulo (por ahora solo manejamos funciones)
-public tuple[Val v, Env env] evalModule(Module m, Env env) {
-  switch (m) {
-    case moduleFun(f): return evalFunction(f, env);
-    default: return <VInt(0), env>;
+// Evalúa una declaración
+public tuple[Val v, Values::Env env] evalDecl(Decl d, Values::Env env) {
+  switch (d) {
+    case TypedDecl(Type t, str name, Expr init): {
+      Val v = evalExpr(init, env);
+      return <v, env + (name : v)>;
+    }
+    case TypedDeclNoInit(Type t, str name): {
+      // Inicializar con valor por defecto según el tipo
+      Val defaultValue = defaultValueForType(t);
+      return <defaultValue, env + (name : defaultValue)>;
+    }
+    case TypedListDecl(Type t, str name, list[Expr] elems): {
+      list[Val] vals = [evalExpr(e, env) | e <- elems];
+      // Por simplicidad, almacenamos como Values::VInt(0) y mantenemos la lista en el entorno
+      // En una implementación más completa, se podría extender Val para incluir listas
+      return <Values::VInt(0), env + (name : Values::VInt(0))>;
+    }
+    case TypedSetDecl(Type t, str name, set[Expr] setElems): {
+      set[Val] vals = {evalExpr(e, env) | e <- setElems};
+      return <Values::VInt(0), env + (name : Values::VInt(0))>;
+    }
+    case TypedMapDecl(Type t, str name, list[tuple[Expr, Expr]] pairs): {
+      for (<Expr k, Expr v> <- pairs) {
+        evalExpr(k, env);
+        evalExpr(v, env);
+      }
+      return <Values::VInt(0), env + (name : Values::VInt(0))>;
+    }
   }
+  return <Values::VInt(0), env>;
 }
 
-// Extrae y evalúa el cuerpo de una función
-public tuple[Val v, Env env] evalFunction(Function f, Env env) {
-  for (/Body b := f) {
-    return evalBody(b, env);
+// Valor por defecto según el tipo
+Val defaultValueForType(Type t) {
+  switch (t) {
+    case TInt(): return Values::VInt(0);
+    case TBool(): return Values::VBool(false);
+    case TChar(): return Values::VChar("");
+    case TString(): return Values::VString("");
+    case TList(_): return Values::VInt(0);
+    case TSet(_): return Values::VInt(0);
+    case TMap(_, _): return Values::VInt(0);
   }
-  return <VInt(0), env>;
+  return Values::VInt(0);
 }
 
-// Evalúa un bloque de código (begin...end)
-// Extrae los statements directos del cuerpo sin incluir los anidados
-public tuple[Val v, Env env] evalBody(Body b, Env env) {
-  Val last = VInt(0);
-          
-  // Accede a los argumentos del nodo del parse tree
-  if (appl(_, args) := b) {
-    // Los args contienen: begin, layout, lista_statements, layout, end
-    // Buscamos el nodo que contiene Statement+
-    for (arg <- args) {
-      // Intentamos identificar si es una lista de statements
-      if (appl(regular(\iter-star-seps(sort("Statement"), _)), stmtArgs) := arg ||
-          appl(regular(\iter-seps(sort("Statement"), _)), stmtArgs) := arg) {
-        // Procesamos cada statement de la lista
-        for (stmtArg <- stmtArgs) {
-          if (Statement s := stmtArg) {
-            <last, env> = evalStmt(s, env);
+// Evalúa una sentencia
+public tuple[Val v, Values::Env env] evalStmt(Stmt s, Values::Env env) {
+  switch (s) {
+    case Assign(str name, Expr e): {
+      Val v = evalExpr(e, env);
+      if (name in env) {
+        return <v, env + (name : v)>;
+      }
+      throw "Variable \"" + name + "\" not declared";
+    }
+    case If(Expr cond, list[Stmt] thenBranch, list[Stmt] elseBranch): {
+      Val condVal = evalExpr(cond, env);
+      switch (condVal) {
+        case Values::VBool(bool b): {
+          if (b) {
+            return evalBlock(thenBranch, env);
+          } else {
+            return evalBlock(elseBranch, env);
+          }
+        }
+        default: throw "Type error: if condition must be bool";
+      }
+    }
+    case While(Expr cond, list[Stmt] body): {
+      Values::Env curEnv = env;
+      bool continueLoop = true;
+      while (continueLoop) {
+        Val condVal = evalExpr(cond, curEnv);
+        switch (condVal) {
+          case Values::VBool(bool b): {
+            if (b) {
+              <_, curEnv> = evalBlock(body, curEnv);
+            } else {
+              continueLoop = false;
+            }
+          }
+          default: continueLoop = false;
+        }
+      }
+      return <Values::VInt(0), curEnv>;
+    }
+    case Block(list[Stmt] stmts): {
+      return evalBlock(stmts, env);
+    }
+  }
+  return <Values::VInt(0), env>;
+}
+
+// Evalúa un bloque de sentencias
+tuple[Val v, Values::Env env] evalBlock(list[Stmt] stmts, Values::Env env) {
+  Val last = Values::VInt(0);
+  Values::Env curEnv = env;
+  for (stmt <- stmts) {
+    <last, curEnv> = evalStmt(stmt, curEnv);
+  }
+  return <last, curEnv>;
+}
+
+// Evalúa una expresión
+public Val evalExpr(Expr e, Values::Env env) {
+  switch (e) {
+    // Literales
+    case intConst(int n): return Values::VInt(n);
+    case floatConst(real r): return Values::VFloat(r);
+    case boolConst(bool b): return Values::VBool(b);
+    case charConst(str c): return Values::VChar(c);
+    case stringConst(str s): return Values::VString(s);
+    
+    // Variables
+    case var(str name): {
+      if (name in env) {
+        return env[name];
+      }
+      throw "Variable \"" + name + "\" not found";
+    }
+    
+    // Operaciones aritméticas
+    case add(Expr l, Expr r): {
+      Val lv = evalExpr(l, env);
+      Val rv = evalExpr(r, env);
+      switch (<lv, rv>) {
+        case <Values::VInt(int ln), Values::VInt(int rn)>: return Values::VInt(ln + rn);
+        default: {
+          switch (<lv, rv>) {
+            case <Values::VFloat(_), _>: return Values::VFloat(toRealVal(lv) + toRealVal(rv));
+            case <_, Values::VFloat(_)>: return Values::VFloat(toRealVal(lv) + toRealVal(rv));
+            default: throw "Type error in addition";
           }
         }
       }
     }
-  }
-  
-  return <last, env>;
-}
-
-// Evalúa un statement individual (asignación, loop, condicional)
-public tuple[Val v, Env env] evalStmt(Statement s, Env env) {
-  switch (s) {
-    case sAssign(a): {
-      // Asignación: set x := expr
-      list[Id] ids = [id | /Id id := a];
-      list[Expression] exprs = [e | /Expression e := a];
-      if (size(ids) >= 1 && size(exprs) >= 1) {
-        str varName = "<ids[0]>";
-        Val v = evalExp(exprs[0], env);
-        return <v, env + (varName : v)>;
-      }
-    }
-    
-    case sLoop(l): {
-      // Bucle: for i from n to m do ... end
-      list[Id] ids = [id | /Id id := l];
-      list[Principal] prs = [pr | /Principal pr := l];
-      list[Body] bodies = [bd | /Body bd := l];
-      if (size(ids) >= 1 && size(prs) >= 2 && size(bodies) >= 1) {
-        int from = toIntVal(evalPrincipal(prs[0], env));
-        int to = toIntVal(evalPrincipal(prs[1], env));
-        str varName = "<ids[0]>";
-        Env cur = env;
-        // Rango inclusivo: [from, to]
-        for (i <- [from..to+1]) {
-          cur = cur + (varName : VInt(i));
-          <_, cur> = evalBody(bodies[0], cur);
+    case sub(Expr l, Expr r): {
+      Val lv = evalExpr(l, env);
+      Val rv = evalExpr(r, env);
+      switch (<lv, rv>) {
+        case <Values::VInt(int ln), Values::VInt(int rn)>: return Values::VInt(ln - rn);
+        default: {
+          switch (<lv, rv>) {
+            case <Values::VFloat(_), _>: return Values::VFloat(toRealVal(lv) - toRealVal(rv));
+            case <_, Values::VFloat(_)>: return Values::VFloat(toRealVal(lv) - toRealVal(rv));
+            default: throw "Type error in subtraction";
+          }
         }
-        return <VInt(0), cur>;
       }
     }
-    
-    case sIf(_, _, _): {
-      // Condicional: if cond then ... else ... end
-      list[Expression] exprs = [e | /Expression e := s];
-      list[Body] bodies = [bd | /Body bd := s];
-      if (size(exprs) >= 1 && size(bodies) >= 2) {
-        Val cond = evalExp(exprs[0], env);
-        return (cond is VBool && cond.b) ? evalBody(bodies[0], env) : evalBody(bodies[1], env);
-      }
-    }
-  }
-  return <VInt(0), env>;
-}
-
-// Evalúa una expresión y devuelve su valor
-public Val evalExp(Expression e, Env env) {
-  str eStr = "<e>";
-  list[Expression] subs = [ex | /Expression ex := e, ex != e];
-  list[Principal] prs = [p | /Principal p := e];
-  
-  // Caso base: solo un valor o identificador
-  if (size(subs) == 0 && size(prs) >= 1) {
-    return evalPrincipal(prs[0], env);
-  }
-  
-  // Expresión entre paréntesis
-  if (startsWith(trim(eStr), "(") && endsWith(trim(eStr), ")") && size(subs) >= 1) {
-    return evalExp(subs[0], env);
-  }
-  
-  // Operador unario negación
-  if (startsWith(trim(eStr), "neg ") && size(subs) >= 1) {
-    Val v = evalExp(subs[0], env);
-    if (v is VInt) return VInt(-v.n);
-    if (v is VFloat) return VFloat(-v.r);
-    throw "Type error: unary neg";
-  }
-  
-  // Operadores binarios
-  if (size(subs) >= 2) {
-    Expression l = subs[0];
-    Expression r = subs[1];
-    
-    // Potencia: base ** exponente
-    if (contains(eStr, "**")) {
-      Val a = evalExp(l, env); Val b = evalExp(r, env);
-      if (b is VInt && b.n >= 0) {
-        real base = toRealVal(a);
-        int n = b.n;
-        real acc = 1.0;
-        // Multiplicar n veces: 3^2 = 3*3 (2 multiplicaciones)
-        for (k <- [1..n+1]) { 
-          acc = acc * base; 
+    case mul(Expr l, Expr r): {
+      Val lv = evalExpr(l, env);
+      Val rv = evalExpr(r, env);
+      switch (<lv, rv>) {
+        case <Values::VInt(int ln), Values::VInt(int rn)>: return Values::VInt(ln * rn);
+        default: {
+          switch (<lv, rv>) {
+            case <Values::VFloat(_), _>: return Values::VFloat(toRealVal(lv) * toRealVal(rv));
+            case <_, Values::VFloat(_)>: return Values::VFloat(toRealVal(lv) * toRealVal(rv));
+            default: throw "Type error in multiplication";
+          }
         }
-        return VFloat(acc);
       }
-      throw "Type error: ** expects non-negative integer exponent";
+    }
+    case div(Expr l, Expr r): {
+      return Values::VFloat(toRealVal(evalExpr(l, env)) / toRealVal(evalExpr(r, env)));
+    }
+    case modulo(Expr l, Expr r): {
+      Val lv = evalExpr(l, env);
+      Val rv = evalExpr(r, env);
+      switch (<lv, rv>) {
+        case <Values::VInt(int ln), Values::VInt(int rn)>: return Values::VInt(ln % rn);
+        default: throw "Type error in modulo";
+      }
+    }
+    case neg(Expr e): {
+      Val v = evalExpr(e, env);
+      switch (v) {
+        case Values::VInt(int n): return Values::VInt(-n);
+        case Values::VFloat(real r): return Values::VFloat(-r);
+        default: throw "Type error in negation";
+      }
+    }
+    case pow(Expr base, Expr exp): {
+      Val bv = evalExpr(base, env);
+      Val ev = evalExpr(exp, env);
+      switch (ev) {
+        case Values::VInt(int n): {
+          if (n >= 0) {
+            real baseVal = toRealVal(bv);
+            real acc = 1.0;
+            for (_ <- [1..n+1]) {
+              acc = acc * baseVal;
+            }
+            return Values::VFloat(acc);
+          }
+          throw "Type error in power: exponent must be non-negative";
+        }
+        default: throw "Type error in power";
+      }
     }
     
-    // Multiplicación
-    if (contains(eStr, " * ") && !contains(eStr, "**")) {
-      Val a = evalExp(l, env); Val b = evalExp(r, env);
-      if (a is VInt && b is VInt) return VInt(a.n * b.n);
-      return VFloat(toRealVal(a) * toRealVal(b));
+    // Operaciones lógicas
+    case and(Expr l, Expr r): {
+      Val lv = evalExpr(l, env);
+      Val rv = evalExpr(r, env);
+      switch (<lv, rv>) {
+        case <Values::VBool(bool lb), Values::VBool(bool rb)>: return Values::VBool(lb && rb);
+        default: throw "Type error in and";
+      }
+    }
+    case or(Expr l, Expr r): {
+      Val lv = evalExpr(l, env);
+      Val rv = evalExpr(r, env);
+      switch (<lv, rv>) {
+        case <Values::VBool(bool lb), Values::VBool(bool rb)>: return Values::VBool(lb || rb);
+        default: throw "Type error in or";
+      }
+    }
+    case not(Expr e): {
+      Val v = evalExpr(e, env);
+      switch (v) {
+        case Values::VBool(bool b): return Values::VBool(!b);
+        default: throw "Type error in not";
+      }
     }
     
-    // División (siempre devuelve float)
-    if (contains(eStr, " / ")) {
-      return VFloat(toRealVal(evalExp(l, env)) / toRealVal(evalExp(r, env)));
+    // Operadores relacionales
+    case lt(Expr l, Expr r): {
+      return Values::VBool(toRealVal(evalExpr(l, env)) < toRealVal(evalExpr(r, env)));
+    }
+    case gt(Expr l, Expr r): {
+      return Values::VBool(toRealVal(evalExpr(l, env)) > toRealVal(evalExpr(r, env)));
+    }
+    case le(Expr l, Expr r): {
+      return Values::VBool(toRealVal(evalExpr(l, env)) <= toRealVal(evalExpr(r, env)));
+    }
+    case ge(Expr l, Expr r): {
+      return Values::VBool(toRealVal(evalExpr(l, env)) >= toRealVal(evalExpr(r, env)));
+    }
+    case eq(Expr l, Expr r): {
+      return Values::VBool(toRealVal(evalExpr(l, env)) == toRealVal(evalExpr(r, env)));
+    }
+    case ne(Expr l, Expr r): {
+      return Values::VBool(toRealVal(evalExpr(l, env)) != toRealVal(evalExpr(r, env)));
     }
     
-    // Módulo (solo para enteros)
-    if (contains(eStr, " mod ")) {
-      Val a = evalExp(l, env); Val b = evalExp(r, env);
-      if (a is VInt && b is VInt) return VInt(a.n % b.n);
-      throw "Type error: mod";
+    // Estructuras de datos (por ahora solo evaluamos, no almacenamos)
+    case listLit(list[Expr] elems): {
+      // Evaluar elementos pero no almacenar la lista completa
+      for (elem <- elems) {
+        evalExpr(elem, env);
+      }
+      return Values::VInt(0);
     }
-    
-    // Suma
-    if (contains(eStr, " + ")) {
-      Val a = evalExp(l, env); Val b = evalExp(r, env);
-      if (a is VInt && b is VInt) return VInt(a.n + b.n);
-      return VFloat(toRealVal(a) + toRealVal(b));
+    case setLit(set[Expr] setElems): {
+      for (elem <- setElems) {
+        evalExpr(elem, env);
+      }
+      return Values::VInt(0);
     }
-    
-    // Resta
-    if (contains(eStr, " - ") && !startsWith(trim(eStr), "neg")) {
-      Val a = evalExp(l, env); Val b = evalExp(r, env);
-      if (a is VInt && b is VInt) return VInt(a.n - b.n);
-      return VFloat(toRealVal(a) - toRealVal(b));
-    }
-    
-    // Operadores de comparación
-    if (contains(eStr, " == "))
-      return VBool(toRealVal(evalExp(l, env)) == toRealVal(evalExp(r, env)));
-    if (contains(eStr, " != "))
-      return VBool(toRealVal(evalExp(l, env)) != toRealVal(evalExp(r, env)));
-    if (contains(eStr, " .lt. "))
-      return VBool(toRealVal(evalExp(l, env)) < toRealVal(evalExp(r, env)));
-    if (contains(eStr, " .gt. "))
-      return VBool(toRealVal(evalExp(l, env)) > toRealVal(evalExp(r, env)));
-    if (contains(eStr, " .le. "))
-      return VBool(toRealVal(evalExp(l, env)) <= toRealVal(evalExp(r, env)));
-    if (contains(eStr, " .ge. "))
-      return VBool(toRealVal(evalExp(l, env)) >= toRealVal(evalExp(r, env)));
-    
-    // Operadores lógicos
-    if (contains(eStr, " and ")) {
-      Val a = evalExp(l, env); Val b = evalExp(r, env);
-      if (a is VBool && b is VBool) return VBool(a.b && b.b);
-      throw "Type error: and";
-    }
-    
-    if (contains(eStr, " or ")) {
-      Val a = evalExp(l, env); Val b = evalExp(r, env);
-      if (a is VBool && b is VBool) return VBool(a.b || b.b);
-      throw "Type error: or";
+    case mapLit(list[tuple[Expr, Expr]] pairs): {
+      for (<Expr k, Expr v> <- pairs) {
+        evalExpr(k, env);
+        evalExpr(v, env);
+      }
+      return Values::VInt(0);
     }
   }
-  
-  return VInt(0);
+  return Values::VInt(0);
 }
 
-// Evalúa un valor primitivo o identificador
-public Val evalPrincipal(Principal p, Env env) {
-  str pStr = "<p>";
-  
-  // Booleanos
-  if (pStr == "true") return VBool(true);
-  if (pStr == "false") return VBool(false);
-  
-  // Extrae los diferentes tipos de literales
-  list[INT] ints = [n | /INT n := p];
-  list[FLOAT] floats = [x | /FLOAT x := p];
-  list[CHAR] chars = [c | /CHAR c := p];
-  list[STRING] strings = [s | /STRING s := p];
-  list[Id] ids = [name | /Id name := p];
-  
-  // Convierte el lexema a su valor correspondiente
-  if (size(ints) >= 1) return VInt(toInt("<ints[0]>"));
-  if (size(floats) >= 1) return VFloat(toReal("<floats[0]>"));
-  if (size(chars) >= 1) return VChar("<chars[0]>");
-  if (size(strings) >= 1) return VString("<strings[0]>");
-  if (size(ids) >= 1) return env["<ids[0]>"]?VInt(0);
-  
-  return VInt(0);
-}
-
-// Convierte un valor a real para operaciones aritméticas
+// Convierte un valor a real
 real toRealVal(Val v) {
-  if (v is VInt) return v.n * 1.0;
-  if (v is VFloat) return v.r;
-  throw "Type error: expected numeric";
-}
-
-// Convierte un valor a entero (para límites de bucles)
-int toIntVal(Val v) {
-  if (v is VInt) return v.n;
-  if (v is VFloat) return toInt(v.r);
-  throw "Type error: expected integer";
+  switch (v) {
+    case Values::VInt(int n): return n * 1.0;
+    case Values::VFloat(real r): return r;
+    default: throw "Type error: expected numeric";
+  }
 }
